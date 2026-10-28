@@ -1929,9 +1929,8 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
   }
   window.__rerenderCert=render;
   let inFlight=0;
-  form.addEventListener('submit',async e=>{
-    e.preventDefault();
-    const q=norm(input.value);
+  async function doVerify(raw){
+    const q=norm(raw);
     if(!q){last=null;render();return;}
     const myRequest=++inFlight;
     last='loading';render();
@@ -1949,8 +1948,15 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
       last='error';
     }
     render();
-  });
+  }
+  form.addEventListener('submit',e=>{e.preventDefault();doVerify(input.value);});
   render();
+
+  // Certificate QR codes link to https://www.rim-hse.com/?cert=<certificate
+  // number>#verify — land here, auto-fill and auto-run the lookup above so
+  // scanning the QR verifies instantly with no typing.
+  const qsCert=new URLSearchParams(location.search).get('cert')||new URLSearchParams(location.search).get('no');
+  if(qsCert){ input.value=qsCert; doVerify(qsCert); }
 })();
 
 /* ================= services: 3D carousel + vertical filter ================= */
