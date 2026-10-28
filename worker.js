@@ -31,6 +31,28 @@ function normalize(s) {
   return (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+// Older certificates are numbered RIMHSE/MM/YY/seq (key: RIMHSE + 6 digits).
+// Some printed QR codes for these instead encode the full issue date, i.e.
+// RIMHSE/DD/MM/YYYY/seq (the format newer batches use natively) — derive
+// that alternate key from each old record's own issue date + sequence so
+// QR codes using either format resolve to the same certificate.
+function altKeyFor(rec) {
+  const m = /^RIMHSE(\d{2})(\d{2})(\d{2})$/.exec(rec.key);
+  if (!m) return null;
+  const seq = m[3];
+  const d = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(rec.issue || "");
+  if (!d) return null;
+  const [, mo, day, yr] = d;
+  return "RIMHSE" + day.padStart(2, "0") + mo.padStart(2, "0") + yr + seq;
+}
+
+const KEY_INDEX = new Map();
+for (const rec of CERTS) {
+  KEY_INDEX.set(rec.key, rec);
+  const alt = altKeyFor(rec);
+  if (alt && !KEY_INDEX.has(alt)) KEY_INDEX.set(alt, rec);
+}
+
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
@@ -97,7 +119,7 @@ export default {
       return jsonResponse({ error: "invalid_input" }, 400, origin);
     }
 
-    const rec = CERTS.find((c) => c.key === key);
+    const rec = KEY_INDEX.get(key);
 
     if (!rec) {
       // Deliberately generic — don't reveal anything about near-misses.
